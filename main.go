@@ -3,16 +3,20 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/360EntSecGroup-Skylar/excelize/v2"
+	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/360EntSecGroup-Skylar/excelize/v2"
 )
 
+// ExcelInput is Input format for generating Excel
 type ExcelInput struct {
 	FileName string  `json:"fileName"`
 	Sheets   []Sheet `json:sheets`
 }
 
+// Sheet is a representation of Sheet data in Excel
 type Sheet struct {
 	Name        string      `json:"name"`
 	MergedCells [][]string  `json:"mergedCells"`
@@ -20,6 +24,7 @@ type Sheet struct {
 	TableExport TableExport `json:"tableExport"`
 }
 
+// CellData is a Data of a particular Cell that needs to be written in Excel
 type CellData struct {
 	Cell       string  `json:"cell"`
 	Text       string  `json:"text"`
@@ -30,6 +35,7 @@ type CellData struct {
 	Color      string  `json:"color"`
 }
 
+// TableExport is a tabular data that needs to be written from a given starting position
 type TableExport struct {
 	TableStarts   string `json:"tableStarts"`
 	SerialNumbers struct {
@@ -60,11 +66,10 @@ func exportExcel(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
-		} else {
 		}
 	}
 	// Get the Excel file with the user input data
-	file := ProcessExcelInput(e)
+	file := processExcelInput(e)
 
 	// Set the headers necessary to get browsers to interpret the downloadable file
 	w.Header().Set("Content-Type", "application/octet-stream")
@@ -75,38 +80,38 @@ func exportExcel(w http.ResponseWriter, r *http.Request) {
 	file.Write(w)
 }
 
-func ProcessExcelInput(e ExcelInput) *excelize.File {
+func processExcelInput(e ExcelInput) *excelize.File {
 	f := excelize.NewFile()
 	isFirstSheet := true
 	for iii := 0; iii < len(e.Sheets); iii++ {
-		ProcessSheetInput(f, e.Sheets[iii], isFirstSheet)
+		processSheetInput(f, e.Sheets[iii], isFirstSheet)
 		isFirstSheet = false
 	}
 
 	return f
 }
 
-func ProcessSheetInput(f *excelize.File, s Sheet, isFirstSheet bool) {
+func processSheetInput(f *excelize.File, s Sheet, isFirstSheet bool) {
 	if isFirstSheet {
 		f.SetSheetName("Sheet1", s.Name)
 	} else {
 		f.NewSheet(s.Name)
 	}
-	ProcessMergedCells(f, s.MergedCells)
+	processMergedCells(f, s.MergedCells)
 	for iii := 0; iii < len(s.CellData); iii++ {
-		ProcessCellData(f, s.CellData[iii])
+		processCellData(f, s.CellData[iii])
 	}
-	ProcessTableExport(f, s.TableExport)
+	processTableExport(f, s.TableExport)
 }
 
-func ProcessMergedCells(f *excelize.File, mergedCells [][]string) {
+func processMergedCells(f *excelize.File, mergedCells [][]string) {
 	for iii := 0; iii < len(mergedCells); iii++ {
-		f.MergeCell(GetActiveSheetName(f), mergedCells[iii][0], mergedCells[iii][1])
+		f.MergeCell(getActiveSheetName(f), mergedCells[iii][0], mergedCells[iii][1])
 	}
 }
 
-func ProcessCellData(f *excelize.File, cd CellData) {
-	f.SetCellRichText(GetActiveSheetName(f), cd.Cell, []excelize.RichTextRun{
+func processCellData(f *excelize.File, cd CellData) {
+	f.SetCellRichText(getActiveSheetName(f), cd.Cell, []excelize.RichTextRun{
 		{
 			Text: cd.Text,
 			Font: &excelize.Font{
@@ -120,7 +125,7 @@ func ProcessCellData(f *excelize.File, cd CellData) {
 	})
 }
 
-func ProcessTableExport(f *excelize.File, te TableExport) {
+func processTableExport(f *excelize.File, te TableExport) {
 	x, y, _ := excelize.CellNameToCoordinates(te.TableStarts)
 	startX := x
 	//startY := y
@@ -131,7 +136,7 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 		isTableHeading = false
 		if te.SerialNumbers.AutoAdd {
 			currCell, _ := excelize.CoordinatesToCellName(x, y)
-			f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
+			f.SetCellRichText(getActiveSheetName(f), currCell, []excelize.RichTextRun{
 				{
 					Text: te.SerialNumbers.Title,
 					Font: &excelize.Font{
@@ -145,7 +150,7 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 		for iii := 0; iii < len(te.TableHeading.HeadingTitles); iii++ {
 			currCell, _ := excelize.CoordinatesToCellName(x, y)
 
-			f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
+			f.SetCellRichText(getActiveSheetName(f), currCell, []excelize.RichTextRun{
 				{
 					Text: te.TableHeading.HeadingTitles[iii],
 					Font: &excelize.Font{
@@ -163,7 +168,7 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 		if isTableHeading {
 			if te.SerialNumbers.AutoAdd {
 				currCell, _ := excelize.CoordinatesToCellName(x, y)
-				f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
+				f.SetCellRichText(getActiveSheetName(f), currCell, []excelize.RichTextRun{
 					{
 						Text: te.SerialNumbers.Title,
 						Font: &excelize.Font{
@@ -175,7 +180,7 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 			}
 			for jjj := 0; jjj < len(te.TableData[iii]); jjj++ {
 				currCell, _ := excelize.CoordinatesToCellName(x, y)
-				f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
+				f.SetCellRichText(getActiveSheetName(f), currCell, []excelize.RichTextRun{
 					{
 						Text: te.TableData[iii][jjj],
 						Font: &excelize.Font{
@@ -189,13 +194,13 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 		} else {
 			currCell, _ := excelize.CoordinatesToCellName(x, y)
 			if te.SerialNumbers.AutoAdd {
-				f.SetCellValue(GetActiveSheetName(f), currCell, serialNoCounter)
+				f.SetCellValue(getActiveSheetName(f), currCell, serialNoCounter)
 				serialNoCounter++
 				x++
 			}
 			for jjj := 0; jjj < len(te.TableData[iii]); jjj++ {
 				currCell, _ := excelize.CoordinatesToCellName(x, y)
-				f.SetCellValue(GetActiveSheetName(f), currCell, te.TableData[iii][jjj])
+				f.SetCellValue(getActiveSheetName(f), currCell, te.TableData[iii][jjj])
 				x++
 			}
 		}
@@ -203,7 +208,7 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 	}
 }
 
-func GetActiveSheetName(f *excelize.File) string {
+func getActiveSheetName(f *excelize.File) string {
 	return f.GetSheetName(f.GetActiveSheetIndex())
 }
 
@@ -212,58 +217,9 @@ func importExcel(w http.ResponseWriter, r *http.Request) {
 }
 
 func getSampleData() ExcelInput {
-	testJson := `{
-		"fileName" : "TestFile.xlsx",
-		"sheets" : [
-		{
-			"name": "Users",
-			"mergedCells": [
-			["A1", "A5"],
-			["B1", "B5"]
-			],
-			"cellData": [
-			{
-				"cell" : "C1",
-				"text" : "Exporting User Data",
-				"fontFamily" : "Times New Roman",
-				"fontSize" : 16,
-				"isBold" : true
-			},
-			{
-				"cell" : "C2",
-				"text" : "Report Generated on 2021-01-01 14:37:22",
-				"fontFamily" : "Times New Roman",
-				"fontSize" : 16,
-				"isBold" : true,
-				"isItalic" : true,
-				"color" : "FF0000"
-			}
-			],
-			"tableExport": {
-				"tableStarts": "A6",
-				"serialNumbers": {
-					"autoAdd": true,
-					"title": "Sr. No"
-				},
-				"tableHeading": {
-					"firstRowOfTableData": false,
-					"headingTitles": [
-						"Name",
-						"Email",
-						"City"
-					],
-					"isBold": true
-				},
-				"tableData": [
-					["Kishan Gor", "me@kishan.co", "Pune"],
-					["Kishan Gor Second", "me@kishan.co", "Pune"]
-				]
-			}
-		}
-		]
-	}`
+	exampleInput, _ := ioutil.ReadFile("exampleExcelInput.json")
 	var excelInput ExcelInput
-	json.Unmarshal([]byte(testJson), &excelInput)
+	json.Unmarshal([]byte(exampleInput), &excelInput)
 	return excelInput
 }
 
