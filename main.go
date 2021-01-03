@@ -1,33 +1,33 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"encoding/json"
-	"net/http"
+	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
+	"log"
+	"net/http"
 )
 
 type ExcelInput struct {
-	FileName string `json:"fileName"`
-	Sheets [] Sheet `json:sheets`
+	FileName string  `json:"fileName"`
+	Sheets   []Sheet `json:sheets`
 }
 
 type Sheet struct {
-	Name        string     `json:"name"`
-	MergedCells [][]string `json:"mergedCells"`
-	CellData   []CellData `json:"cellData"`
+	Name        string      `json:"name"`
+	MergedCells [][]string  `json:"mergedCells"`
+	CellData    []CellData  `json:"cellData"`
 	TableExport TableExport `json:"tableExport"`
 }
 
 type CellData struct {
-	Cell       string `json:"cell"`
-	Text       string `json:"text"`
-	FontFamily string `json:"fontFamily"`
+	Cell       string  `json:"cell"`
+	Text       string  `json:"text"`
+	FontFamily string  `json:"fontFamily"`
 	FontSize   float64 `json:"fontSize"`
-	IsBold     bool   `json:"isBold"`
-	IsItalic     bool   `json:"isItalic"`
-	Color     string   `json:"color"`
+	IsBold     bool    `json:"isBold"`
+	IsItalic   bool    `json:"isItalic"`
+	Color      string  `json:"color"`
 }
 
 type TableExport struct {
@@ -44,12 +44,12 @@ type TableExport struct {
 	TableData [][]string `json:"tableData"`
 }
 
-func ping(w http.ResponseWriter, r *http.Request){
-	fmt.Fprintf(w, "Pong!");
+func ping(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Pong!")
 }
 
-func exportExcel(w http.ResponseWriter, r *http.Request){
-	var e ExcelInput;
+func exportExcel(w http.ResponseWriter, r *http.Request) {
+	var e ExcelInput
 
 	if r.Method == "GET" {
 		e = getSampleData()
@@ -79,7 +79,7 @@ func ProcessExcelInput(e ExcelInput) *excelize.File {
 	f := excelize.NewFile()
 	isFirstSheet := true
 	for iii := 0; iii < len(e.Sheets); iii++ {
-		ProcessSheetInput(f, e.Sheets[iii], isFirstSheet);
+		ProcessSheetInput(f, e.Sheets[iii], isFirstSheet)
 		isFirstSheet = false
 	}
 
@@ -111,13 +111,13 @@ func ProcessCellData(f *excelize.File, cd CellData) {
 			Text: cd.Text,
 			Font: &excelize.Font{
 				Bold:   cd.IsBold,
-				Italic:   cd.IsItalic,
+				Italic: cd.IsItalic,
 				Family: cd.FontFamily,
-				Size: cd.FontSize,
-				Color: cd.Color,
+				Size:   cd.FontSize,
+				Color:  cd.Color,
 			},
 		},
-	});
+	})
 }
 
 func ProcessTableExport(f *excelize.File, te TableExport) {
@@ -130,71 +130,71 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 	if !te.TableHeading.FirstRowOfTableData {
 		isTableHeading = false
 		if te.SerialNumbers.AutoAdd {
-			currCell, _ := excelize.CoordinatesToCellName(x,y)
+			currCell, _ := excelize.CoordinatesToCellName(x, y)
 			f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
 				{
 					Text: te.SerialNumbers.Title,
 					Font: &excelize.Font{
-						Bold:   te.TableHeading.IsBold,
+						Bold: te.TableHeading.IsBold,
 					},
 				},
-			});
+			})
 			x++
 		}
 
 		for iii := 0; iii < len(te.TableHeading.HeadingTitles); iii++ {
-			currCell, _ := excelize.CoordinatesToCellName(x,y)
+			currCell, _ := excelize.CoordinatesToCellName(x, y)
 
 			f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
 				{
 					Text: te.TableHeading.HeadingTitles[iii],
 					Font: &excelize.Font{
-						Bold:   te.TableHeading.IsBold,
+						Bold: te.TableHeading.IsBold,
 					},
 				},
-			});
+			})
 			x++
 		}
 		y++
 	}
-	
+
 	for iii := 0; iii < len(te.TableData); iii++ {
 		x = startX
 		if isTableHeading {
 			if te.SerialNumbers.AutoAdd {
-				currCell, _ := excelize.CoordinatesToCellName(x,y)
+				currCell, _ := excelize.CoordinatesToCellName(x, y)
 				f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
 					{
 						Text: te.SerialNumbers.Title,
 						Font: &excelize.Font{
-							Bold:   te.TableHeading.IsBold,
+							Bold: te.TableHeading.IsBold,
 						},
 					},
-				});
+				})
 				x++
 			}
 			for jjj := 0; jjj < len(te.TableData[iii]); jjj++ {
-				currCell, _ := excelize.CoordinatesToCellName(x,y)
+				currCell, _ := excelize.CoordinatesToCellName(x, y)
 				f.SetCellRichText(GetActiveSheetName(f), currCell, []excelize.RichTextRun{
 					{
 						Text: te.TableData[iii][jjj],
 						Font: &excelize.Font{
-							Bold:   te.TableHeading.IsBold,
+							Bold: te.TableHeading.IsBold,
 						},
 					},
-				});
+				})
 				x++
 			}
-			isTableHeading = false;
+			isTableHeading = false
 		} else {
-			currCell, _ := excelize.CoordinatesToCellName(x,y)
+			currCell, _ := excelize.CoordinatesToCellName(x, y)
 			if te.SerialNumbers.AutoAdd {
 				f.SetCellValue(GetActiveSheetName(f), currCell, serialNoCounter)
 				serialNoCounter++
 				x++
 			}
 			for jjj := 0; jjj < len(te.TableData[iii]); jjj++ {
-				currCell, _ := excelize.CoordinatesToCellName(x,y)
+				currCell, _ := excelize.CoordinatesToCellName(x, y)
 				f.SetCellValue(GetActiveSheetName(f), currCell, te.TableData[iii][jjj])
 				x++
 			}
@@ -204,15 +204,14 @@ func ProcessTableExport(f *excelize.File, te TableExport) {
 }
 
 func GetActiveSheetName(f *excelize.File) string {
-	return f.GetSheetName(f.GetActiveSheetIndex());
+	return f.GetSheetName(f.GetActiveSheetIndex())
 }
 
-
-func importExcel(w http.ResponseWriter, r *http.Request){
-	fmt.Fprintf(w, "Importing Excel!");
+func importExcel(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Importing Excel!")
 }
 
-func getSampleData() ExcelInput{
+func getSampleData() ExcelInput {
 	testJson := `{
 		"fileName" : "TestFile.xlsx",
 		"sheets" : [
@@ -265,7 +264,7 @@ func getSampleData() ExcelInput{
 	}`
 	var excelInput ExcelInput
 	json.Unmarshal([]byte(testJson), &excelInput)
-	return excelInput;
+	return excelInput
 }
 
 func handleRequests() {
