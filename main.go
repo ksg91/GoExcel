@@ -95,7 +95,8 @@ func processSheetInput(f *excelize.File, s Sheet, isFirstSheet bool) {
 	if isFirstSheet {
 		f.SetSheetName("Sheet1", s.Name)
 	} else {
-		f.NewSheet(s.Name)
+		iSheetIndex := f.NewSheet(s.Name)
+		f.SetActiveSheet(iSheetIndex);
 	}
 	processMergedCells(f, s.MergedCells)
 	for iii := 0; iii < len(s.CellData); iii++ {
