@@ -1,19 +1,36 @@
 package main
 
 import (
+	"context"
+	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 )
 
 // ExcelInput is Input format for generating Excel
 type ExcelInput struct {
 	FileName string  `json:"fileName"`
 	Sheets   []Sheet `json:sheets`
+}
+
+type HTTPHeaders struct {
+	ContentType             string `json:"Content-Type"`
+	ContentDisposition      string `json:"Content-Disposition"`
+	FileName                string `json:"File-Name"`
+	ContentTransferEncoding string `json:"Content-Transfer-Encoding"`
+}
+
+type ExcelResponse struct {
+	Headers         HTTPHeaders `json:"headers"`
+	StatusCode      int         `json:"statusCode"`
+	Body            string      `json:"body"`
+	IsBase64Encoded bool        `json:"isBase64Encoded"`
 }
 
 // Sheet is a representation of Sheet data in Excel
@@ -72,12 +89,20 @@ func exportExcel(w http.ResponseWriter, r *http.Request) {
 	file := processExcelInput(e)
 
 	// Set the headers necessary to get browsers to interpret the downloadable file
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=\"%s\"", e.FileName))
-	w.Header().Set("File-Name", e.FileName)
-	w.Header().Set("Content-Transfer-Encoding", "binary")
-	w.Header().Set("Expires", "0")
-	file.Write(w)
+	// w.Header().Set("Content-Type", "application/octet-stream")
+	// w.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=\"%s\"", e.FileName))
+	// w.Header().Set("File-Name", e.FileName)
+	// w.Header().Set("Content-Transfer-Encoding", "binary")
+	// w.Header().Set("Expires", "0")
+	buff, err := file.WriteToBuffer()
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(b64.StdEncoding.EncodeToString(buff.Bytes()))
 }
 
 func processExcelInput(e ExcelInput) *excelize.File {
@@ -96,7 +121,7 @@ func processSheetInput(f *excelize.File, s Sheet, isFirstSheet bool) {
 		f.SetSheetName("Sheet1", s.Name)
 	} else {
 		iSheetIndex := f.NewSheet(s.Name)
-		f.SetActiveSheet(iSheetIndex);
+		f.SetActiveSheet(iSheetIndex)
 	}
 	processMergedCells(f, s.MergedCells)
 	for iii := 0; iii < len(s.CellData); iii++ {
@@ -224,13 +249,51 @@ func getSampleData() ExcelInput {
 	return excelInput
 }
 
-func handleRequests() {
-	http.HandleFunc("/", ping)
-	http.HandleFunc("/export", exportExcel)
-	http.HandleFunc("/import", importExcel)
-	log.Fatal(http.ListenAndServe(":10000", nil))
+func handleRequests(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+
+	fmt.Printf("Processing request data for request %s.\n", request.RequestContext.RequestID)
+	fmt.Printf("Body size = %d.\n", len(request.Body))
+
+	fmt.Println("Headers:")
+	for key, value := range request.Headers {
+		fmt.Printf("    %s: %s\n", key, value)
+	}
+
+	var excelInput ExcelInput
+
+	err := json.Unmarshal([]byte(request.Body), &excelInput)
+
+	if err != nil {
+		fmt.Printf("There was an error decoding the json. err = %s", err)
+	}
+
+	fmt.Printf("ExcelInput: %#v", request.Body)
+	fmt.Printf("ExcelInput: %#v", excelInput)
+
+	file := processExcelInput(excelInput)
+
+	buff, err := file.WriteToBuffer()
+
+	if err != nil {
+		return events.APIGatewayProxyResponse{StatusCode: 500}, err
+	}
+
+	bodyContent := b64.StdEncoding.EncodeToString(buff.Bytes())
+
+	// headers := HTTPHeaders{ContentType: "application/octet-stream", ContentDisposition: fmt.Sprintf("attachment;filename=%s", excelInput.FileName),
+	// 	FileName:                excelInput.FileName,
+	// 	ContentTransferEncoding: "binary"}
+
+	return events.APIGatewayProxyResponse{
+		StatusCode:        200,
+		Headers:           map[string]string{"content-type": "application/octet-stream", "content-disposition": fmt.Sprintf("attachment;filename=%s", excelInput.FileName), "file-name": excelInput.FileName, "Content-Transfer-Encoding": "binary"},
+		MultiValueHeaders: map[string][]string{},
+		Body:              bodyContent,
+		IsBase64Encoded:   true,
+	}, nil
+
 }
 
 func main() {
-	handleRequests()
+	lambda.Start(handleRequests)
 }
