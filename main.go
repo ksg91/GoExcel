@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
 )
@@ -84,19 +85,25 @@ func processExcelInput(e ExcelInput) *excelize.File {
 	f := excelize.NewFile()
 	isFirstSheet := true
 	for iii := 0; iii < len(e.Sheets); iii++ {
-		processSheetInput(f, e.Sheets[iii], isFirstSheet)
+		processSheetInput(f, e.Sheets[iii], isFirstSheet, iii)
 		isFirstSheet = false
 	}
 
 	return f
 }
 
-func processSheetInput(f *excelize.File, s Sheet, isFirstSheet bool) {
-	if isFirstSheet {
-		f.SetSheetName("Sheet1", s.Name)
+func processSheetInput(f *excelize.File, s Sheet, isFirstSheet bool, sheetIndex int) {
+	sheetName := "Sheet1"
+	if s.Name == "" {
+		sheetName = "Sheet" + strconv.Itoa(sheetIndex+1)
+	}
+	if isFirstSheet && sheetName != "Sheet1" {
+		if sheetName != "Sheet1" {
+			f.SetSheetName("Sheet1", sheetName)
+		}
 	} else {
-		iSheetIndex := f.NewSheet(s.Name)
-		f.SetActiveSheet(iSheetIndex);
+		iSheetIndex := f.NewSheet(sheetName)
+		f.SetActiveSheet(iSheetIndex)
 	}
 	processMergedCells(f, s.MergedCells)
 	for iii := 0; iii < len(s.CellData); iii++ {
