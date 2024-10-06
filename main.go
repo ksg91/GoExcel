@@ -208,7 +208,15 @@ func processTableExport(f *excelize.File, te TableExport) {
 			}
 			for jjj := 0; jjj < len(te.TableData[iii]); jjj++ {
 				currCell, _ := excelize.CoordinatesToCellName(x, y)
-				f.SetCellValue(getActiveSheetName(f), currCell, te.TableData[iii][jjj])
+				// Try to parse the string value as a number
+				if num, err := strconv.Atoi(te.TableData[iii][jjj]); err == nil {
+					f.SetCellValue(getActiveSheetName(f), currCell, num)
+				} else if num, err := strconv.ParseFloat(te.TableData[iii][jjj], 64); err == nil {
+					f.SetCellValue(getActiveSheetName(f), currCell, num)
+				} else {
+					// If not a number, set it as text
+					f.SetCellValue(getActiveSheetName(f), currCell, te.TableData[iii][jjj])
+				}
 				x++
 			}
 		}
